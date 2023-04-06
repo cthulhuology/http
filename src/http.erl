@@ -1,5 +1,25 @@
--module(http).
+%%
+%% MIT No Attribution  
+%% Copyright 2023 David J Goehrig <dave@dloh.org>
+%%
+%% Permission is hereby granted, free of charge, to any person obtaining a copy 
+%% of this software and associated documentation files (the "Software"), to 
+%% deal in the Software without restriction, including without limitation the 
+%% rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+%% sell copies of the Software, and to permit persons to whom the Software is 
+%% furnished to do so.  
+%%
+%% THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+%% IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+%% FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+%% AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+%% LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+%% FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+%% IN THE SOFTWARE.
 
+-module(http).
+-author({ "David J Goehrig", "dave@dloh.org"}).
+-copyright(<<"© 2023 David J. Goehrig"/utf8>>).
 -compile({no_auto_import,[get/1,put/1]}).
 -export([ start/0, start/1, get/1, get/2, post/2, post/3, put/2, put/3, delete/1, delete/2, head/1, connect/2, options/2, trace/2, patch/3, creds/0, request/4, pid/0, then/1, body/1, body/2 ]).
 
