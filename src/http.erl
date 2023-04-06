@@ -134,14 +134,14 @@ contains_blank_line(Data) when is_binary(Data) ->
 		[{Offset,4}| _M ] -> Offset+4
 	end.
 
-match_eol(Data) when is_binary(Data) ->
-	case binary:matches(Data, <<"\r\n">>) of
-		[] -> case binary:matches(Data, <<"\n">>) of
-			[] -> false;
-			[ {Offset,1} | _M ] -> Offset + 1
-		end;
-		[{Offset,2}| _M] -> Offset + 2
-	end.
+%% match_eol(Data) when is_binary(Data) ->
+%% 	case binary:matches(Data, <<"\r\n">>) of
+%% 		[] -> case binary:matches(Data, <<"\n">>) of
+%% 			[] -> false;
+%% 			[ {Offset,1} | _M ] -> Offset + 1
+%% 		end;
+%% 		[{Offset,2}| _M] -> Offset + 2
+%% 	end.
 
 content_length(Headers) ->
 	{ ok, M } = re:compile("Content-Length: (?<Length>[0-9]+)"),
@@ -215,7 +215,7 @@ loop(Seen) ->
 		case response(Seen,Data) of
 			{ wait, Resp } -> 
 				loop(Resp);
-			{ done, Header, Body } -> 
+			{ done, _Header, Body } -> 
 				F = erlang:get(callback),
 				F(Body),
 				loop(<<"">>)
