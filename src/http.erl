@@ -143,23 +143,70 @@ contains_blank_line(Data) when is_binary(Data) ->
 %% 		[{Offset,2}| _M] -> Offset + 2
 %% 	end.
 
+transfer_encoding(Headers) ->
+	{ ok, M} = re:compile("Transfer-Encoding: (?<Encoding>\w+)"),
+	{ match, [Encoding] } = re:run(Headers,M,[{capture,all_names,binary}]),
+	case Encoding of
+		<<"chunked">> ->	
+			chuncked;
+		<<"compress">> ->	
+			decompress;
+		<<"deflate">> ->	
+			unzip;
+		<<"gzip">> ->	
+			gnunzip;
+		<<"identity">> -> %% just being pendantic	
+			none;
+		_ ->
+			none
+	end.
+
 content_length(Headers) ->
 	{ ok, M } = re:compile("Content-Length: (?<Length>[0-9]+)"),
 	{ match, [Length] } = re:run(Headers,M,[{capture,all_names,binary}]),
 	binary_to_integer(Length).
 
+parse_chuncked(Seen,<<>>) ->
+	{ wait, Seen };
+parse_chuncked(Seen,Data) ->
+	[ LenStr, Rest ] = string:split(Data,"\r\n"),
+	Len = list_to_integer(binary_to_list(LenStr),16),
+	case Len of
+		0 -> { done, Seen };
+		_ -> 
+			<<Chunck:Len/binary,"\r\n",Remainder/binary>> = Rest,
+			parse_chuncked(<<Seen/binary,Chunck/binary>>,Remainder)
+	end.	
+
 response(Seen,Data) ->
 	Resp = <<Seen/binary,Data/binary>>,
 	case contains_blank_line(Resp) of
-		false -> { wait, Resp };
-		EOH ->
-			Headers = binary:part(Resp, 0, EOH),
-			Body = binary:part(Resp, EOH, byte_size(Resp) - EOH),
+	false -> { wait, Resp };
+	EOH ->
+		Headers = binary:part(Resp, 0, EOH),
+		Body = binary:part(Resp, EOH, byte_size(Resp) - EOH),
+		case transfer_encoding(Headers) of
+		chuncked ->
+			case parse_chuncked(<<>>,Body) of
+				{ done, NewSeen } -> { done, Headers, NewSeen };
+				{ wait, _  } -> { wait, Resp }
+			end;
+		none ->
 			Length = content_length(Headers),
 			case byte_size(Body) < Length of
 				true -> { wait, Resp };
 				false -> {done, Headers, Body }
-			end
+			end;
+		unzip ->
+			Length = content_length(Headers),
+			case byte_size(Body) < Length of
+				true -> { wait, Resp };
+				false -> {done, Headers, zip:extract(Body,[ memory ]) }
+			end;
+		Encoding ->
+			error_logger:error_msg("Unsupported Transfer-Encoding ~p~n", [ Encoding ]),
+			{ done, Headers, <<>> }
+		end
 	end.
 			
 
@@ -243,3 +290,14 @@ start(L) when is_list(L) ->
 
 start() ->
 	start([]).
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+chunked_test() ->
+	?assertEqual({ done, <<"This is a test">>}, parse_chuncked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n0\r\n">>)),
+	?assertEqual({ wait, <<"This is a test">>}, parse_chuncked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n">>)),
+	?assertEqual({ done, <<"foo">>}, parse_chuncked(<<"foo">>,<<"0\r\n">>)).
+
+
+-endif.
