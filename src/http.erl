@@ -286,7 +286,13 @@ init([]) ->
 	loop(<<"">>).
 
 start(L) when is_list(L) ->
-	spawn_link(fun() -> init(L) end).
+	case whereis(?MODULE) of
+	undefined ->
+		spawn_link(fun() -> init(L) end);
+	Pid ->
+		Pid
+	end.
+
 
 start() ->
 	start([]).
