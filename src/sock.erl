@@ -30,7 +30,6 @@ loop(Sock = #sock{ socket = Socket, host = Host, port = Port, ssl = true }) ->
 	{ callback, Fun } ->
 		put(callback,Fun);
 	{ ssl, Socket, Data } ->
-		error_logger:info_msg("ssl ~p>>>~p~n", [ Socket, Data ]),
 		F = get(callback),
 		F(Data);
 	{ ssl_closed, Socket } ->
@@ -49,7 +48,6 @@ loop(Sock = #sock{ socket = Socket, host = Host, port = Port, ssl = false }) ->
 	{ callback, Fun } ->
 		put(callback,Fun);
 	{ tcp, Socket, Data } ->
-		error_logger:info_msg("tcp ~p>>>~p~n", [ Socket, Data ]),
 		F = get(callback),
 		F(Data);
 	{ tcp_passive, Socket } ->

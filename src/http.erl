@@ -21,7 +21,15 @@
 -author({ "David J Goehrig", "dave@dloh.org"}).
 -copyright(<<"© 2023 David J. Goehrig"/utf8>>).
 -compile({no_auto_import,[get/1,put/1]}).
--export([ start/0, start/1, get/1, get/2, post/2, post/3, put/2, put/3, delete/1, delete/2, head/1, connect/2, options/2, trace/2, patch/3, creds/0, request/4, pid/0, then/1, body/1, body/2 ]).
+-export([ start/0, start/1, 
+	get/1, get/2, 
+	post/2, post/3, 
+	put/2, put/3, 
+	delete/1, delete/2, 
+	head/1, connect/2, options/2, trace/2, patch/3, 
+	creds/0, request/4, pid/0, then/1,
+	body/1, body/2 
+]).
 
 pid() ->
 	?MODULE ! { pid, self() }.
@@ -39,7 +47,7 @@ get(Url,Headers) ->
 	?MODULE ! { get, Url, Headers }.
 
 post(Url,Body) ->
-	?MODULE ! { post, Url, [], Body }.
+	?MODULE ! { post, Url, [{<<"Content-Length">>, integer_to_binary(byte_size(Body))}], Body }.
 
 post(Url,Headers,Body) ->
 	?MODULE ! { post, Url, Headers, Body }.
@@ -142,23 +150,21 @@ contains_blank_line(Data) when is_binary(Data) ->
 %% 		end;
 %% 		[{Offset,2}| _M] -> Offset + 2
 %% 	end.
-
 transfer_encoding(Headers) ->
-	{ ok, M} = re:compile("Transfer-Encoding: (?<Encoding>\w+)"),
-	{ match, [Encoding] } = re:run(Headers,M,[{capture,all_names,binary}]),
-	case Encoding of
-		<<"chunked">> ->	
-			chuncked;
-		<<"compress">> ->	
-			decompress;
-		<<"deflate">> ->	
-			unzip;
-		<<"gzip">> ->	
-			gnunzip;
-		<<"identity">> -> %% just being pendantic	
-			none;
-		_ ->
-			none
+	{ ok, M } = re:compile("Transfer-Encoding: (?<Encoding>.*)", [multiline,caseless, { newline, crlf }]),
+	case re:run(Headers,M,[{capture,all_names,binary}]) of
+	{ match, [<<"chunked">>] }->
+		chunked;
+	{ match, [<<"compress">>]}->	
+		decompress;
+	{ match, [<<"deflate">>]} ->	
+		unzip;
+	{ match, [<<"gzip">>]} ->	
+		gnunzip;
+	{ match, [<<"identity">>]} -> %% just being pendantic	
+		none;
+	_ ->
+		none
 	end.
 
 content_length(Headers) ->
@@ -166,16 +172,24 @@ content_length(Headers) ->
 	{ match, [Length] } = re:run(Headers,M,[{capture,all_names,binary}]),
 	binary_to_integer(Length).
 
-parse_chuncked(Seen,<<>>) ->
+
+%% TODO actually add stream parsing
+%parse_stream(Seen,<<>>) ->
+%	{ wait, Seen };
+%parse_stream(Seen,Data) ->
+%	{ done, <<Seen/binary,Data/binary>> }.	
+
+parse_chunked(Seen,<<>>) ->
 	{ wait, Seen };
-parse_chuncked(Seen,Data) ->
+parse_chunked(Seen,Data) ->
 	[ LenStr, Rest ] = string:split(Data,"\r\n"),
 	Len = list_to_integer(binary_to_list(LenStr),16),
-	case Len of
-		0 -> { done, Seen };
-		_ -> 
+	if 
+		Len =:= 0 -> { done, Seen };
+		Len > byte_size(Rest) -> { wait, <<Seen/binary,Data/binary>> };
+		true -> 
 			<<Chunck:Len/binary,"\r\n",Remainder/binary>> = Rest,
-			parse_chuncked(<<Seen/binary,Chunck/binary>>,Remainder)
+			parse_chunked(<<Seen/binary,Chunck/binary>>,Remainder)
 	end.	
 
 response(Seen,Data) ->
@@ -186,8 +200,8 @@ response(Seen,Data) ->
 		Headers = binary:part(Resp, 0, EOH),
 		Body = binary:part(Resp, EOH, byte_size(Resp) - EOH),
 		case transfer_encoding(Headers) of
-		chuncked ->
-			case parse_chuncked(<<>>,Body) of
+		chunked ->
+			case parse_chunked(<<>>,Body) of
 				{ done, NewSeen } -> { done, Headers, NewSeen };
 				{ wait, _  } -> { wait, Resp }
 			end;
@@ -301,9 +315,12 @@ start() ->
 -include_lib("eunit/include/eunit.hrl").
 
 chunked_test() ->
-	?assertEqual({ done, <<"This is a test">>}, parse_chuncked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n0\r\n">>)),
-	?assertEqual({ wait, <<"This is a test">>}, parse_chuncked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n">>)),
-	?assertEqual({ done, <<"foo">>}, parse_chuncked(<<"foo">>,<<"0\r\n">>)).
+	?assertEqual({ done, <<"This is a test">>}, parse_chunked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n0\r\n">>)),
+	?assertEqual({ wait, <<"This is a test">>}, parse_chunked(<<>>,<<"4\r\nThis\r\n3\r\n is\r\n2\r\n a\r\n5\r\n test\r\n">>)),
+	?assertEqual({ done, <<"foo">>}, parse_chunked(<<"foo">>,<<"0\r\n">>)).
 
+encoding_test() ->
+	?assertEqual( chunked, transfer_encoding(<<"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nDate: Tue, 19 Nov 2024 08:14:54 GMT\r\nTransfer-Encoding: chunked\r\n\r\n">>)),
+	?assertEqual( none, transfer_encoding(<<"HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 123\r\nDate: Tue, 19 Nov 2024 08:14:54 GMT\r\n\r\n">>)).
 
 -endif.
