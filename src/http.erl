@@ -299,10 +299,17 @@ init([]) ->
 	register(?MODULE,self()),
 	loop(<<"">>).
 
+wait_start() ->
+	case whereis(?MODULE) of
+		undefined -> wait_start();
+		Pid -> Pid
+	end.
+
 start(L) when is_list(L) ->
 	case whereis(?MODULE) of
 	undefined ->
-		spawn_link(fun() -> init(L) end);
+		spawn_link(fun() -> init(L) end),
+		wait_start();
 	Pid ->
 		Pid
 	end.
