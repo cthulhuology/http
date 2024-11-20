@@ -24,7 +24,7 @@
 -export([ parse/1, host/1, port/1, path/1, protocol/1 ]).
 
 parse(Url) ->
-	{ ok, M } = re:compile("(?<Proto>[^:]+)://(?<Host>[^:/]+)(:(?<Port>[^/]+))?(?<Path>/.*)"),
+	{ ok, M } = re:compile("(?<Proto>[^:]+)://(?<Host>[^:/]+)(:(?<Port>[^/]+))?(?<Path>/[^?]*)(?<Query>.*)"),
 	{ namelist, NL } = re:inspect(M,namelist),
 	case re:run(Url,M,[{capture,all_names,binary}]) of
 		{ match, MT } ->
@@ -54,4 +54,26 @@ port(Url) ->
 path(Url) ->
 	proplists:get_value(<<"Path">>,Url).
 
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+parse_test() ->
+	?assertEqual([{<<"Host">>,<<"bedrock-runtime.us-east-1.amazonaws.com">>},
+	 {<<"Path">>,
+	  <<"/model/anthropic.claude-3-5-sonnet-20240620-v1:0/invoke">>},
+	 {<<"Port">>,<<"443">>},
+	 {<<"Proto">>,<<"https">>},
+	 {<<"Query">>,<<>>}],
+ 	url:parse("https://bedrock-runtime.us-east-1.amazonaws.com:443/model/anthropic.claude-3-5-sonnet-20240620-v1:0/invoke")),
+	?assertEqual([{<<"Host">>,<<"bedrock-runtime.us-east-1.amazonaws.com">>},
+	 {<<"Path">>,
+	  <<"/model/anthropic.claude-3-5-sonnet-20240620-v1:0/invoke">>},
+	 {<<"Port">>,<<"443">>},
+	 {<<"Proto">>,<<"https">>},
+	 {<<"Query">>,<<"?foo=bar">>}],
+ 	url:parse("https://bedrock-runtime.us-east-1.amazonaws.com:443/model/anthropic.claude-3-5-sonnet-20240620-v1:0/invoke?foo=bar")).
+
+
+-endif.
 
