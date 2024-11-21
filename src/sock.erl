@@ -61,7 +61,7 @@ loop(Sock = #sock{ socket = Socket, host = Host, port = Port, ssl = false }) ->
 
 connect(ssl,Host,Port) ->
 	spawn(fun () ->
-		case ssl:connect(Host,Port,[{verify,verify_peer}, {cacerts, public_key:cacerts_get() }, binary]) of
+		case ssl:connect(Host,Port,[{verify,verify_peer}, {cacerts, public_key:cacerts_get() }, {customize_hostname_check, [{match_fun, public_key:pkix_verify_hostname_match_fun(https)}]},binary]) of
 			{ ok, Socket } ->
 				ok = ssl:controlling_process(Socket,self()),
 				loop(#sock{ socket = Socket, host = Host, port = Port, ssl = true });
